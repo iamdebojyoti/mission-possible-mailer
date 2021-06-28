@@ -9,6 +9,8 @@ import javax.mail.internet.MimeMessage;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -38,6 +40,9 @@ public class MailSenderService {
 	@Autowired
 	private JavaMailSender mailSender;
 	
+	@Value("${application.cc.address}")
+	private String ccAddress;
+	
 	public void send(String fileName, String sheetName, AppMode mode) throws Exception {
 		File file = new File(fileName);
 		
@@ -62,11 +67,12 @@ public class MailSenderService {
 			try {
 				MimeMessage mimeMessage = mailSender.createMimeMessage();
 
-				MimeMessageHelper helper = new MimeMessageHelper(mimeMessage);
+				MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true);
 				helper.setSubject(mailContent.getSubject());
 				helper.setText(mailContent.getBody(),true);
 				helper.setTo(mailContent.getTo());
-
+				helper.setCc(ccAddress);
+				helper.addAttachment("poster.jpg", new ClassPathResource("attachment.jpg"));
 				mailSender.send(mimeMessage);
 				System.out.println("Mail Sent successfully to " + mailContent.getTo());
 			} catch (MessagingException | MailException e) {
