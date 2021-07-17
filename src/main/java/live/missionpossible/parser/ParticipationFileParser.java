@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import live.missionpossible.models.User;
 
 @Component
-public class RegistrationFileParser extends AbstractFileParser {
+public class ParticipationFileParser extends AbstractFileParser {
 
 	@Override
 	protected void doPostProcess(List<User> users) {

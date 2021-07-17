@@ -8,9 +8,10 @@ import javax.mail.MessagingException;
 import javax.mail.internet.MimeMessage;
 
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -19,23 +20,28 @@ import org.springframework.stereotype.Service;
 import live.missionpossible.MailContent;
 import live.missionpossible.models.User;
 import live.missionpossible.parser.DonationFileParser;
-import live.missionpossible.parser.RegistrationFileParser;
+import live.missionpossible.parser.ParticipationFileParser;
 import live.missionpossible.types.AppMode;
 
 @Service
 public class MailSenderService {
+	
+	private Logger logger = LoggerFactory.getLogger(MailSenderService.class);
 
 	@Autowired
-	private RegistrationFileParser registrationFileParser;
+	private ParticipationFileParser participationFileParser;
 	
 	@Autowired
 	private DonationFileParser donationFileParser;
 	
 	@Autowired
-	private RegistrationMailPreparer registrationMailPreparer;
+	private ParticipationRegnMailPreparer participationMailPreparer;
 	
 	@Autowired
-	private DonationMailPreparer donationMailPreparer;
+	private DonationRegMailPreparer donationMailPreparer;
+	
+	@Autowired
+	private CertificationMailPreparer certificationMailPreparer;
 	
 	@Autowired
 	private JavaMailSender mailSender;
@@ -46,18 +52,24 @@ public class MailSenderService {
 	public void send(String fileName, String sheetName, AppMode mode) throws Exception {
 		File file = new File(fileName);
 		
-		if (mode == AppMode.REGISTRATION) {
-			List<User> users = registrationFileParser.parse(file, sheetName);
+		if (mode == AppMode.PARTICIPATION) {
+			List<User> users = participationFileParser.parse(file, sheetName);
 			List<MailContent> mailContents = users.stream()
-					.map(user -> StringUtils.isNotEmpty(user.getEventName()) ? registrationMailPreparer.prepareMail(user)
+					.map(user -> StringUtils.isNotEmpty(user.getEventName())
+							? participationMailPreparer.prepareMail(user)
 							: donationMailPreparer.prepareMail(user))
 					.collect(Collectors.toList());
 			sendMail(mailContents);
-		} else {
+		} else if (mode == AppMode.DONATION) {
 			List<User> users = donationFileParser.parse(file, sheetName);
+			List<MailContent> mailContents = users.stream().map(user -> donationMailPreparer.prepareMail(user))
+					.collect(Collectors.toList());
+			sendMail(mailContents);
+		} else {
+			List<User> users = participationFileParser.parse(file, sheetName);
 			List<MailContent> mailContents = users.stream()
-									.map(user -> donationMailPreparer.prepareMail(user))
-									.collect(Collectors.toList());
+					.map(user -> certificationMailPreparer.prepareMail(user))
+					.collect(Collectors.toList());
 			sendMail(mailContents);
 		}
 	}
@@ -66,16 +78,25 @@ public class MailSenderService {
 		mailContents.forEach(mailContent -> {
 			try {
 				MimeMessage mimeMessage = mailSender.createMimeMessage();
-
 				MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true);
+				
 				helper.setSubject(mailContent.getSubject());
-				helper.setText(mailContent.getBody(),true);
+				helper.setText(mailContent.getBody(), true);
 				helper.setTo(mailContent.getTo());
-				helper.setCc(ccAddress);
-				helper.addAttachment("poster.jpg", new ClassPathResource("attachment.jpg"));
+				
+				if(StringUtils.isNotBlank(ccAddress)) {
+					helper.setCc(mailContent.getCc());
+				}
+				
+				if (mailContent.getAttachment() != null) {
+					helper.addAttachment(mailContent.getAttachment().getLeft(), mailContent.getAttachment().getRight());
+				}
+				
 				mailSender.send(mimeMessage);
+				logger.info("Mail Sent successfully to " + mailContent.getTo());
 				System.out.println("Mail Sent successfully to " + mailContent.getTo());
 			} catch (MessagingException | MailException e) {
+				logger.error("[ERROR] Failed to sent message to " + mailContent.getTo(), e);
 				System.out.println("[ERROR] Failed to sent message to " + mailContent.getTo());
 				e.printStackTrace();
 			}

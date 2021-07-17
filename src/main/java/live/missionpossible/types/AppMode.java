@@ -5,7 +5,7 @@ import java.util.Map;
 
 public enum AppMode {
 
-	REGISTRATION, DONATION;
+	PARTICIPATION, DONATION, JUST_CERTI;
 	
 	private static final Map<String, AppMode> lookup = new HashMap<>();
 
